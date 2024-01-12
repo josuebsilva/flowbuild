@@ -22,7 +22,7 @@ export default {
   },
   methods: {
     addNode() {
-      this.editor.addNode();
+      this.editor.addNode(300, 40, 'finish', [], 1,0);
     },
   },
   created() {
