@@ -116,6 +116,53 @@ export default class FlowBuilder {
         this.layer.add(this.selectionRectangle);
     }
 
+    makeDelete(pos_x = 90, pos_y = -10) {
+        let tooltip = new Konva.Label({
+            width: 90,
+            x: pos_x,
+            y: pos_y,
+            opacity:1,
+            scale: {
+                cursor: 'pointer'
+            }
+        });
+        tooltip.add(
+            new Konva.Tag({
+                fill: 'white',
+                pointerDirection: 'down',
+                pointerWidth: 10,
+                pointerHeight: 10,
+                lineJoin: 'round',
+                shadowColor: 'black',
+                stroke: '#E5E5E5',
+                shadowColor: '#ccc',
+                shadowBlur: 5,
+                shadowOffset: { x: 2, y: 2 },
+                shadowOpacity: 0.3,
+                strokeWidth: 4,
+            })
+        );
+        var icon = new Konva.Text({
+            padding: 10,
+            align: 'center',
+            width: 90,
+            height: 40,
+            text: 'delete',
+            fontSize: 25,
+            fontFamily: 'Material Symbols Outlined',
+            fill: '#c9c7c7',
+        });
+        icon.on('mouseover', (e) => {
+            console.log(e);
+            this.stage.container().style.cursor = 'pointer';
+        });
+        icon.on('mouseout', (e) => {
+            this.stage.container().style.cursor = 'default';
+        });
+        tooltip.add(icon);
+        return tooltip;
+    }
+
     addNode(x, y, name, data, num_in = 0, num_out = 1) {
         
         var groupNode = new Konva.Group({
@@ -202,41 +249,9 @@ export default class FlowBuilder {
                     fontFamily: 'Calibri',
                     fill: '#252525',
                 });
-                tooltip = new Konva.Label({
-                    x: 90,
-                    y: -10,
-                    opacity: 0.75,
-                });
-                tooltip.add(
-                    new Konva.Tag({
-                        fill: 'black',
-                        pointerDirection: 'down',
-                        pointerWidth: 10,
-                        pointerHeight: 10,
-                        lineJoin: 'round',
-                        shadowColor: 'black',
-                    })
-                );
-                tooltip.add(
-                    new Konva.Text({
-                        text: 'Remover',
-                        fontFamily: 'Calibri',
-                        fontSize: 18,
-                        padding: 5,
-                        fill: 'white',
-                    })
-                );
+                tooltip = this.makeDelete();
                 break;
         }
-        
-        var icon = new Konva.Text({
-            x: node.width() / 2 - 40,
-            y: node.height() / 2 - 10,
-            text: 'whatshot',
-            fontSize: 18,
-            fontFamily: 'Material Symbols Outlined',
-            fill: '#252525',
-        });
         
         for(var i = 1; i <= num_out; i++) {
             let name = `output_${i}_node_${groupNode._id}`;
@@ -288,7 +303,16 @@ export default class FlowBuilder {
                 });
                 this.layer.add(line);
                 line.zIndex(0);
-    
+                line.on('mouseover', function (e) {
+                    e.target.attrs.stroke = '#03fcd3';
+                    line.zIndex(0);
+                    e.target.draw();
+                });
+                line.on('mouseout', function (e) {
+                    e.target.attrs.stroke = '#E5E5E5';
+                    line.zIndex(0);
+                    e.target.draw();
+                });
                 /*var anim = new Konva.Animation(function (frame) {
                     line.dash(dash);
                 }, this.layer);
@@ -377,7 +401,6 @@ export default class FlowBuilder {
             });
         }
         groupNode.add(node);
-
 
         node.zIndex(0);
 
