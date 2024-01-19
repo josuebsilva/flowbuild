@@ -17,6 +17,8 @@ export default class FlowBuilder {
         this.drawingLine = false;
         this.connections = [];
         this.selectionRectangle = null;
+        this.events = {};
+        this.newScale = 0;
         this.nodes = {
             "drawflow": {
                 "Home": {
@@ -47,6 +49,49 @@ export default class FlowBuilder {
         };
     }
 
+    /* Events */
+    on(event, callback) {
+        // Check if the callback is not a function
+        if (typeof callback !== 'function') {
+            console.error(`The listener callback must be a function, the given type is ${typeof callback}`);
+            return false;
+        }
+        // Check if the event is not a string
+        if (typeof event !== 'string') {
+            console.error(`The event name must be a string, the given type is ${typeof event}`);
+            return false;
+        }
+        // Check if this event not exists
+        if (this.events[event] === undefined) {
+            this.events[event] = {
+                listeners: [],
+            };
+        }
+        this.events[event].listeners.push(callback);
+    }
+
+    removeListener(event, callback) {
+        // Check if this event not exists
+
+        if (!this.events[event]) return false;
+
+        const listeners = this.events[event].listeners;
+        const listenerIndex = listeners.indexOf(callback);
+        const hasListener = listenerIndex > -1;
+        if (hasListener) listeners.splice(listenerIndex, 1);
+    }
+
+    dispatch(event, details) {
+        // Check if this event not exists
+        if (this.events[event] === undefined) {
+            // console.error(`This event: ${event} does not exist`);
+            return false;
+        }
+        this.events[event].listeners.forEach((listener) => {
+            listener(details);
+        });
+    }
+
     makeStartNode(x, y) {
         var groupNode = new Konva.Group({
             x: x,
@@ -54,7 +99,7 @@ export default class FlowBuilder {
             draggable: true,
         });
 
-        
+
         var output = new Konva.Circle({
             x: node.width() - 1,
             y: node.height() / 2,
@@ -103,9 +148,9 @@ export default class FlowBuilder {
 
 
         this.addNode(20, 20, 'welcome');
-        this.addNode(300, 40, 'whats', [], 1,2);
+        this.addNode(300, 40, 'whats', [], 1, 2);
         this.generateSelect();
-        this.events();
+        this.eventsListener();
     }
 
     generateSelect() {
@@ -116,12 +161,13 @@ export default class FlowBuilder {
         this.layer.add(this.selectionRectangle);
     }
 
-    makeDelete(pos_x = 90, pos_y = -10) {
+    makeDelete(pos_x = 90, pos_y = -10, name = null) {
         let tooltip = new Konva.Label({
+            name,
             width: 90,
             x: pos_x,
             y: pos_y,
-            opacity:1,
+            opacity: 1,
             scale: {
                 cursor: 'pointer'
             }
@@ -160,16 +206,75 @@ export default class FlowBuilder {
             this.stage.container().style.cursor = 'default';
         });
         tooltip.add(icon);
+
+        tooltip.on('click', (e) => {
+            console.log(e.target.parent);
+            console.log('Delete name', e.target.parent.getAttr('name'));
+            let name = e.target.parent.getAttr('name');
+            if (name.includes('delete_node')) {
+                var id = name.replace('delete_node_', '');
+                let itemId = '.node_' + id;
+                var element = this.stage.findOne(itemId);
+                delete this.nodes.drawflow.Home.data[id];
+                element.remove();
+
+                if (this.connections.length > 0) {
+                    console.log('id', id);
+                    var index = 0
+                    let connection = this.connections.find((con, i) => {
+                        index = i;
+                        return con.node_in === parseInt(id) || con.node_out === parseInt(id);
+                    });
+                    console.log(connection);
+                    if (connection) {
+                        connection.line.remove();
+                        this.connections.splice(index, 1);
+                    }
+                }
+            }
+
+            if (name.includes('delete_line')) {
+                var id = name.replace('delete_line_', '');
+                if (this.connections.length > 0) {
+                    console.log('id', id);
+                    let connection = this.connections.find((con, index) => {
+                        return con.id === parseInt(id);
+                    });
+                    console.log(connection);
+                    let output = this.stage.findOne('.'+connection.output_name);
+                    output.setAttr('fill', '#fff');
+                    let input  = this.stage.findOne('.'+connection.input_name);
+                    input.setAttr('fill', '#fff');
+                    if (connection) {
+                        connection.line.remove();
+                        this.connections.splice(index, 1);
+                    }
+                }
+            }
+
+            console.log(this.connections);
+            console.log(this.nodes);
+            tooltip.remove();
+            this.stage.container().style.cursor = 'default';
+        });
+        setTimeout(() => {
+            tooltip.remove();
+            this.stage.container().style.cursor = 'default';
+        }, 2000);
         return tooltip;
     }
 
-    addNode(x, y, name, data, num_in = 0, num_out = 1) {
-        
+    addNode(x, y, name, data, num_in = 0, num_out = 1, style = {}) {
+
         var groupNode = new Konva.Group({
+            name,
             x: x,
             y: y,
             draggable: true,
         });
+        groupNode.setAttr('id', groupNode._id);
+        if (name != 'welcome')
+            groupNode.setAttr('name', `node_${groupNode._id}`);
 
         var node = null;
         var input = null;
@@ -179,7 +284,10 @@ export default class FlowBuilder {
         let heightNode = 60;
         let distanceOut = heightNode / 2;
         let distanceIn = heightNode / 2;
-    
+        let background = 'white';
+        if(style.background) {
+            background = style.background;
+        }
         switch (name) {
             case 'welcome':
                 node = new Konva.Rect({
@@ -187,7 +295,7 @@ export default class FlowBuilder {
                     y: 0,
                     width: 200,
                     height: 150,
-                    fill: 'white',
+                    fill: background,
                     stroke: '#E5E5E5',
                     strokeWidth: 4,
                     cornerRadius: 8,
@@ -217,22 +325,22 @@ export default class FlowBuilder {
                     });
                 });
                 break;
-        
+
             default:
                 var maxValue = Math.max(num_out, num_in)
-                if(num_out > 1) {
+                if (num_out > 1) {
                     distanceOut = 30;
                 }
-                if(num_in > 1) {
+                if (num_in > 1) {
                     distanceIn = 30;
                 }
-                heightNode  *= maxValue;
+                heightNode *= maxValue;
                 node = new Konva.Rect({
                     x: 0,
                     y: 0,
-                    width: 200,
+                    width: 220,
                     height: heightNode,
-                    fill: 'white',
+                    fill: background,
                     stroke: '#E5E5E5',
                     strokeWidth: 4,
                     cornerRadius: 8,
@@ -244,16 +352,27 @@ export default class FlowBuilder {
                 var title = new Konva.Text({
                     x: 50,
                     y: 20,
-                    text: 'Mensagem',
+                    text: style.label,
                     fontSize: 18,
                     fontFamily: 'Calibri',
                     fill: '#252525',
                 });
-                tooltip = this.makeDelete();
+                var icon = new Konva.Text({
+                    x: -10,
+                    y: 8,
+                    padding: 10,
+                    align: 'center',
+                    width: 90,
+                    height: 40,
+                    text: style.icon,
+                    fontSize: 25,
+                    fontFamily: 'Material Symbols Outlined',
+                    fill: '#252525',
+                });
                 break;
         }
-        
-        for(var i = 1; i <= num_out; i++) {
+
+        for (var i = 1; i <= num_out; i++) {
             let name = `output_${i}_node_${groupNode._id}`;
             var output = new Konva.Circle({
                 name: name,
@@ -291,9 +410,9 @@ export default class FlowBuilder {
                     lineJoin: 'round',
                     //dash: [20, 20],
                 });
-    
+
                 this.connections.push({
-                    id: Date.now(),
+                    id: line._id,
                     node_out: groupNode._id,
                     line: line,
                     points: [posMouse.x, posMouse.y],
@@ -303,10 +422,17 @@ export default class FlowBuilder {
                 });
                 this.layer.add(line);
                 line.zIndex(0);
-                line.on('mouseover', function (e) {
+                line.on('mouseover', (e) => {
                     e.target.attrs.stroke = '#03fcd3';
                     line.zIndex(0);
                     e.target.draw();
+                    if (!this.drawingLine) {
+                        let deleteConnection = this.stage.findOne(`.delete_line_${e.target._id}`);
+                        if (deleteConnection == null) {
+                            deleteConnection = this.makeDelete(e.target.getRelativePointerPosition().x, e.target.getRelativePointerPosition().y, `delete_line_${e.target._id}`);
+                            this.layer.add(deleteConnection);
+                        }
+                    }
                 });
                 line.on('mouseout', function (e) {
                     e.target.attrs.stroke = '#E5E5E5';
@@ -319,7 +445,7 @@ export default class FlowBuilder {
                 anim.start();*/
             });
         }
-        for(var i = 1; i <= num_in; i++) {
+        for (var i = 1; i <= num_in; i++) {
             let name = `input_${i}_node_${groupNode._id}`;
             var input = new Konva.Circle({
                 name: name,
@@ -348,7 +474,7 @@ export default class FlowBuilder {
                 const posTarget = e.target.getAbsolutePosition();
                 var points = [posMouse.x, posMouse.y];
                 var oncircle = e.target;
-                if(this.drawingLine) {
+                if (this.drawingLine) {
                     let index = i > 1 ? i - 1 : i;
                     console.log('Connections', this.connections);
                     console.log('Connections', oncircle);
@@ -359,30 +485,30 @@ export default class FlowBuilder {
                         e.target.x(),
                         e.target.y(),
                     ];
-                    this.connections[this.connections.length - 1].input_name  = e.target.getAttr('name');
-                    this.connections[this.connections.length - 1].node_in     = oncircle.parent._id;
+                    this.connections[this.connections.length - 1].input_name = e.target.getAttr('name');
+                    this.connections[this.connections.length - 1].node_in = oncircle.parent._id;
                     let node_out = this.connections[this.connections.length - 1].node_out;
                     let output_name = this.connections[this.connections.length - 1].output_name;
                     let output_index = this.connections[this.connections.length - 1].output_index;
                     console.log(this.nodes.drawflow.Home.data[oncircle.parent._id]);
                     console.log(this.connections[this.connections.length - 1]);
-                    console.log('input_'+index);
-                    this.nodes.drawflow.Home.data[oncircle.parent._id].inputs['input_'+index].connections.push(
+                    console.log('input_' + index);
+                    this.nodes.drawflow.Home.data[oncircle.parent._id].inputs['input_' + index].connections.push(
                         {
                             node: node_out,
-                            output: 'output_'+output_index,
+                            output: 'output_' + output_index,
                             output_name: output_name
                         }
                     );
-                    this.nodes.drawflow.Home.data[this.connections[this.connections.length - 1].node_out].outputs['output_'+output_index].connections.push(
+                    this.nodes.drawflow.Home.data[this.connections[this.connections.length - 1].node_out].outputs['output_' + output_index].connections.push(
                         {
                             node: oncircle.parent._id,
-                            input: 'input_'+index,
+                            input: 'input_' + index,
                             input_name: `input_${index}_node_${groupNode._id}`
                         }
                     );
                     input.setAttr('fill', '#03fcd3');
-                    let outputCircle = this.stage.findOne('.'+output_name);
+                    let outputCircle = this.stage.findOne('.' + output_name);
                     outputCircle.setAttr('fill', '#03fcd3');
 
                     lastLine.line.setAttr('name', `node_in_${groupNode._id}_input_${index}_node_out_${node_out}_output_${output_index}`);
@@ -391,14 +517,14 @@ export default class FlowBuilder {
                 this.drawingLine = false;
             });
         }
-        if(title) {
+        if (title) {
             groupNode.add(title);
         }
-        if(tooltip) {
+        if (tooltip) {
             groupNode.add(tooltip);
-            tooltip.on('click', function (e) {
-                groupNode.remove();
-            });
+        }
+        if (icon) {
+            //groupNode.add(icon);
         }
         groupNode.add(node);
 
@@ -417,110 +543,119 @@ export default class FlowBuilder {
         groupNode.on('dragmove', (e) => {
             console.log('Moving Node', e.target);
             let target = e.target;
-            let node   = this.nodes.drawflow.Home.data[target._id];
+            let node = this.nodes.drawflow.Home.data[target._id];
             console.log(node);
-            if(node.inputs) {
+            if (node.inputs) {
                 let inputs = Object.values(node.inputs);
-                if(inputs.length > 0) {
+                if (inputs.length > 0) {
                     inputs.forEach((input) => {
-                        if(input.connections.length > 0 ) {
+                        if (input.connections.length > 0) {
                             input.connections.forEach((connection) => {
                                 let line_name = `node_in_${target._id}_input_${input.index}_node_out_${connection.node}_${connection.output}`
-                                let inputCircle = this.stage.findOne('.'+input.name);
-                                let outputCircle = this.stage.findOne('.'+connection.output_name);
-                                console.log(line_name);
-                                let line = this.stage.findOne('.'+line_name);
-                                console.log('getAbsolutePosition', inputCircle.getAbsolutePosition());
-                                console.log('getPosition', inputCircle.getPosition());
-                                console.log('stageRect.offset.x', this.stageRect.offset.x);
-                                console.log('stage.position().x', this.stage.position().x);
-                                console.log('X', inputCircle.x());
+                                let inputCircle = this.stage.findOne('.' + input.name);
+                                let outputCircle = this.stage.findOne('.' + connection.output_name);
+                                let line = this.stage.findOne('.' + line_name);
                                 let stageX = this.stage.position().x;
                                 let stageY = this.stage.position().y;
-                                let outPutX = outputCircle.getAbsolutePosition().x - stageX;
-                                let outPutY = outputCircle.getAbsolutePosition().y - stageY;
-                                let inputX  = inputCircle.getAbsolutePosition().x - stageX;
-                                let inputY  = inputCircle.getAbsolutePosition().y - stageY;
-                                line.points([outPutX, outPutY, inputX, inputY]);
-                                line.sceneFunc((context, shape) => {
-                                    const width = inputX - outPutX;
-                                    const height = inputY - outPutY;
-                                    const dir = Math.sign(height);
-                                    const radius = Math.min(20, Math.abs(height / 2), Math.abs(width / 2));
-    
-                                    context.beginPath();
-                                    context.moveTo(outPutX, outPutY);
-                                    context.lineTo(outPutX + width / 2 - 20, outPutY);
-                                    context.quadraticCurveTo(
-                                        outPutX + width / 2,
-                                        outPutY,
-                                        outPutX + width / 2,
-                                        outPutY + dir * radius
-                                    );
-                                    context.lineTo(outPutX + width / 2, inputY - dir * radius);
-                                    context.quadraticCurveTo(
-                                        outPutX + width / 2,
-                                        inputY,
-                                        outPutX + width / 2 + radius,
-                                        inputY
-                                    );
-                                    context.lineTo(inputX, inputY);
-                                    context.fillStrokeShape(shape);
-                                });
+
+                                var outPutX = outputCircle.getAttr('x') + outputCircle.parent.getAttr('x');
+                                var outPutY = outputCircle.getAttr('y') + outputCircle.parent.getAttr('y');
+                                var inputX = inputCircle.getAttr('x') + target.getAttr('x');
+                                var inputY = inputCircle.getAttr('y') + target.getAttr('y');
+
+                                if(line) {
+                                    line.points([outPutX, outPutY, inputX, inputY]);
+                                    line.sceneFunc((context, shape) => {
+                                        const width = inputX - outPutX;
+                                        const height = inputY - outPutY;
+                                        const dir = Math.sign(height);
+                                        const radius = Math.min(20, Math.abs(height / 2), Math.abs(width / 2));
+
+                                        context.beginPath();
+                                        context.moveTo(outPutX, outPutY);
+                                        context.lineTo(outPutX + width / 2 - 20, outPutY);
+                                        context.quadraticCurveTo(
+                                            outPutX + width / 2,
+                                            outPutY,
+                                            outPutX + width / 2,
+                                            outPutY + dir * radius
+                                        );
+                                        context.lineTo(outPutX + width / 2, inputY - dir * radius);
+                                        context.quadraticCurveTo(
+                                            outPutX + width / 2,
+                                            inputY,
+                                            outPutX + width / 2 + radius,
+                                            inputY
+                                        );
+                                        context.lineTo(inputX, inputY);
+                                        context.fillStrokeShape(shape);
+                                    });
+                                }
                                 console.log(line);
                             });
                         }
                     })
                 }
             }
-            if(node.outputs) {
+            if (node.outputs) {
                 let outputs = Object.values(node.outputs);
-                if(outputs.length > 0) {
+                console.log(node.outputs);
+                if (outputs.length > 0) {
                     outputs.forEach((output) => {
-                        if(output.connections.length > 0 ) {
+                        if (output.connections.length > 0) {
                             output.connections.forEach((connection) => {
                                 let line_name = `node_in_${connection.node}_${connection.input}_node_out_${target._id}_output_${output.index}`
-                                let inputCircle = this.stage.findOne('.'+connection.input_name);
-                                let outputCircle = this.stage.findOne('.'+output.name);
-                                console.log(line_name);
-                                let line = this.stage.findOne('.'+line_name);
-                                console.log('getAbsolutePosition', inputCircle.getAbsolutePosition());
-                                console.log('getPosition', inputCircle.getPosition());
-                                console.log('stageRect.offset.x', this.stageRect.offset.x);
+                                let inputCircle = this.stage.findOne('.' + connection.input_name);
+                                let inputNode = this.layer.findOne('#' + connection.node);
+                                let outputCircle = this.stage.findOne('.' + output.name);
+                                console.log('line_name', line_name);
+                                console.log('inputCircle', inputCircle);
+                                console.log('childrens', this.layer.children);
+                                console.log('connection', '#' + connection.node);
+                                let line = this.stage.findOne('.' + line_name);
+                                console.log('Input getAbsolutePosition', inputCircle.getAbsolutePosition());
+                                console.log('Input getPosition', inputCircle.getPosition());
                                 console.log('stage.position().x', this.stage.position().x);
-                                console.log('X', inputCircle.x());
-                                let stageX = this.stage.position().x;
-                                let stageY = this.stage.position().y;
-                                let outPutX = outputCircle.getAbsolutePosition().x - stageX;
-                                let outPutY = outputCircle.getAbsolutePosition().y - stageY;
-                                let inputX  = inputCircle.getAbsolutePosition().x - stageX;
-                                let inputY  = inputCircle.getAbsolutePosition().y - stageY;
-                                line.points([outPutX, outPutY, inputX, inputY]);
-                                line.sceneFunc((context, shape) => {
-                                    const width = inputX - outPutX;
-                                    const height = inputY - outPutY;
-                                    const dir = Math.sign(height);
-                                    const radius = Math.min(20, Math.abs(height / 2), Math.abs(width / 2));
-    
-                                    context.beginPath();
-                                    context.moveTo(outPutX, outPutY);
-                                    context.lineTo(outPutX + width / 2 - 20, outPutY);
-                                    context.quadraticCurveTo(
-                                        outPutX + width / 2,
-                                        outPutY,
-                                        outPutX + width / 2,
-                                        outPutY + dir * radius
-                                    );
-                                    context.lineTo(outPutX + width / 2, inputY - dir * radius);
-                                    context.quadraticCurveTo(
-                                        outPutX + width / 2,
-                                        inputY,
-                                        outPutX + width / 2 + radius,
-                                        inputY
-                                    );
-                                    context.lineTo(inputX, inputY);
-                                    context.fillStrokeShape(shape);
-                                });
+
+                                var stageX = this.stage.position().x;
+                                var stageY = this.stage.position().y;
+
+                                var outPutX = outputCircle.getAttr('x') + target.getAttr('x');
+                                var outPutY = outputCircle.getAttr('y') + target.getAttr('y');
+                                var inputX = inputCircle.getAttr('x') + inputCircle.parent.getAttr('x');
+                                var inputY = inputCircle.getAttr('y') + inputCircle.parent.getAttr('y');
+
+                                console.log('New Input X', inputX);
+                                console.log(e.target.getAttr('x'));
+
+                                if(line) {
+                                    line.points([outPutX, outPutY, inputX, inputY]);
+                                    line.sceneFunc((context, shape) => {
+                                        const width = inputX - outPutX;
+                                        const height = inputY - outPutY;
+                                        const dir = Math.sign(height);
+                                        const radius = Math.min(20, Math.abs(height / 2), Math.abs(width / 2));
+
+                                        context.beginPath();
+                                        context.moveTo(outPutX, outPutY);
+                                        context.lineTo(outPutX + width / 2 - 20, outPutY);
+                                        context.quadraticCurveTo(
+                                            outPutX + width / 2,
+                                            outPutY,
+                                            outPutX + width / 2,
+                                            outPutY + dir * radius
+                                        );
+                                        context.lineTo(outPutX + width / 2, inputY - dir * radius);
+                                        context.quadraticCurveTo(
+                                            outPutX + width / 2,
+                                            inputY,
+                                            outPutX + width / 2 + radius,
+                                            inputY
+                                        );
+                                        context.lineTo(inputX, inputY);
+                                        context.fillStrokeShape(shape);
+                                    });
+                                }
                                 console.log(line);
                             });
                         }
@@ -530,11 +665,21 @@ export default class FlowBuilder {
             //myArray.find(x => x.id === '45')
         });
 
-        node.on('mouseover', function (e) {
+        node.on('mouseover', (e) => {
             e.target.attrs.stroke = '#00D6A366';
             console.log(e.target);
+            if (e.target.parent.getAttr('name') != 'welcome') {
+                let deleteNode = this.stage.findOne(`.delete_node_${e.target.parent._id}`);
+                if (deleteNode == null) {
+                    deleteNode = this.makeDelete(90, -10, `delete_node_${e.target.parent._id}`);
+                    e.target.parent.add(deleteNode);
+                }
+            }
             e.target.zIndex(0);
             e.target.draw();
+        });
+        groupNode.on('mouseout', (e) => {
+
         });
         node.on('mouseout', function (e) {
             e.target.attrs.stroke = '#E5E5E5';
@@ -548,7 +693,7 @@ export default class FlowBuilder {
         this.layer.draw();
 
         //Make object json
-        this.nodes.drawflow.Home.data[groupNode._id] =  {
+        this.nodes.drawflow.Home.data[groupNode._id] = {
             id: groupNode._id,
             name: name,
             data,
@@ -559,7 +704,7 @@ export default class FlowBuilder {
         };
     }
 
-    events() {
+    eventsListener() {
         let x = new Konva.Layer();
         var scaleBy = 1.01;
         let currentScale = 6;
@@ -592,13 +737,13 @@ export default class FlowBuilder {
                 currentScale = currentScale < scales.length - 1 ? currentScale + 1 : currentScale;
             }
 
-            var newScale = scales[currentScale];
+            this.newScale = scales[currentScale];
 
-            this.stage.scale({ x: newScale, y: newScale });
+            this.stage.scale({ x: this.newScale, y: this.newScale });
 
             var newPos = {
-                x: pointer.x - mousePointTo.x * newScale,
-                y: pointer.y - mousePointTo.y * newScale,
+                x: pointer.x - mousePointTo.x * this.newScale,
+                y: pointer.y - mousePointTo.y * this.newScale,
             };
 
             this.stage.position(newPos);
@@ -609,13 +754,17 @@ export default class FlowBuilder {
         this.stage.on('mouseup', (e) => {
             this.stage.setDraggable(true);
             const oncircle = e.target instanceof Konva.Circle;
-            if(this.drawingLine) {
-                if(!oncircle) {
+            if (this.drawingLine) {
+                if (!oncircle) {
                     this.connections[this.connections.length - 1].line.remove();
                     this.connections.splice(this.connections.length - 1, 1);
                 }
             }
-            this.drawingLine = false;
+        });
+        this.stage.on('click', (e) => {
+            const onstage = e.target instanceof Konva.Stage;
+
+            console.log('Target up', e.target);
         });
         this.stage.on('mousedown', (e) => {
             const oncircle = e.target instanceof Konva.Circle;
@@ -675,8 +824,13 @@ export default class FlowBuilder {
             // is not registered by Konva.Stage
             // we can register it manually:
             this.stage.setPointersPositions(e);
-
-            this.addNode(this.stage.getPointerPosition().x, this.stage.getPointerPosition().y, 'teste', [], 1, 1);
+            this.dispatch('drop', {
+                name: e.dataTransfer.getData('node'),
+                x: this.stage.getPointerPosition().x,
+                y: this.stage.getPointerPosition().y
+            });
+            console.log('Drop', e);
+            console.log(e.dataTransfer.getData('node'));
         });
     }
 
@@ -778,5 +932,16 @@ export default class FlowBuilder {
         }
 
         this.gridLayer.batchDraw();
+    }
+
+    dispatch(event, details) {
+        // Check if this event not exists
+        if (this.events[event] === undefined) {
+            // console.error(`This event: ${event} does not exist`);
+            return false;
+        }
+        this.events[event].listeners.forEach((listener) => {
+            listener(details);
+        });
     }
 }
