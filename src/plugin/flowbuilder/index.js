@@ -215,8 +215,7 @@ export default class FlowBuilder {
                 var id = name.replace('delete_node_', '');
                 let itemId = '.node_' + id;
                 var element = this.stage.findOne(itemId);
-                delete this.nodes.drawflow.Home.data[id];
-                element.remove();
+                
 
                 if (this.connections.length > 0) {
                     console.log('id', id);
@@ -227,10 +226,41 @@ export default class FlowBuilder {
                     });
                     console.log(connection);
                     if (connection) {
+                        let output = this.stage.findOne('.'+connection.output_name);
+                        if(output) {
+                            output.setAttr('fill', '#fff');
+                        }
+
+                        let input  = this.stage.findOne('.'+connection.input_name);
+                        if(input) {
+                            input.setAttr('fill', '#fff');
+                        }
+                        
+                        let nodeInput = this.nodes.drawflow.Home.data[connection.node_in];
+                        let nodeOutput = this.nodes.drawflow.Home.data[connection.node_out];
+
+                        console.log('nodeInput', nodeInput);
+                        console.log('nodeOutput', nodeOutput);
+                        
+                        nodeInput.inputs[`input_${connection.input_index}`].connections.forEach((con, i) => {
+                            if(con.output_name == connection.output_name) {
+                                nodeInput.inputs[`input_${connection.input_index}`].connections.splice(i, 1);
+                            }
+                        });
+
+                        nodeOutput.outputs[`output_${connection.output_index}`].connections.forEach((con, i) => {
+                            if(con.input_name == connection.input_name) {
+                                nodeOutput.outputs[`output_${connection.output_index}`].connections.splice(i, 1);
+                            }
+                        });
+
                         connection.line.remove();
                         this.connections.splice(index, 1);
                     }
                 }
+
+                delete this.nodes.drawflow.Home.data[id];
+                element.remove();
             }
 
             if (name.includes('delete_line')) {
@@ -240,6 +270,24 @@ export default class FlowBuilder {
                     let connection = this.connections.find((con, index) => {
                         return con.id === parseInt(id);
                     });
+                    let nodeInput = this.nodes.drawflow.Home.data[connection.node_in];
+                    let nodeOutput = this.nodes.drawflow.Home.data[connection.node_out];
+                    
+                    nodeInput.inputs[`input_${connection.input_index}`].connections.forEach((con, i) => {
+                        if(con.output_name == connection.output_name) {
+                            nodeInput.inputs[`input_${connection.input_index}`].connections.splice(i, 1);
+                        }
+                    });
+
+                    nodeOutput.outputs[`output_${connection.output_index}`].connections.forEach((con, i) => {
+                        if(con.input_name == connection.input_name) {
+                            nodeOutput.outputs[`output_${connection.output_index}`].connections.splice(i, 1);
+                        }
+                    });
+
+                    console.log('nodeInput', nodeInput);
+                    console.log('nodeOutput', nodeOutput);
+
                     console.log(connection);
                     let output = this.stage.findOne('.'+connection.output_name);
                     output.setAttr('fill', '#fff');
@@ -390,6 +438,7 @@ export default class FlowBuilder {
                 index: i,
                 connections: [],
             };
+            output.setAttr('index', i);
             groupNode.add(output);
             output.zIndex(1);
             output.on('mousedown', (e) => {
@@ -399,7 +448,8 @@ export default class FlowBuilder {
                 const posMouse = e.target.getStage().getRelativePointerPosition();
                 const posTarget = e.target.getAbsolutePosition();
                 var points = [posMouse.x, posMouse.y];
-                let index = i > 1 ? i - 1 : i;
+                let index = e.target.getAttr('index');
+                console.log('index maked', index);
                 var line = new Konva.Line({
                     name: `line_node_${groupNode._id}_out_${output._id}`,
                     points: points,
@@ -463,6 +513,7 @@ export default class FlowBuilder {
                 name,
                 connections: []
             };
+            input.setAttr('index', i);
             groupNode.add(input);
             input.zIndex(1);
             input.on('mouseup', (e) => {
@@ -475,7 +526,7 @@ export default class FlowBuilder {
                 var points = [posMouse.x, posMouse.y];
                 var oncircle = e.target;
                 if (this.drawingLine) {
-                    let index = i > 1 ? i - 1 : i;
+                    let index = e.target.getAttr('index');
                     console.log('Connections', this.connections);
                     console.log('Connections', oncircle);
                     const lastLine = this.connections[this.connections.length - 1];
@@ -485,7 +536,8 @@ export default class FlowBuilder {
                         e.target.x(),
                         e.target.y(),
                     ];
-                    this.connections[this.connections.length - 1].input_name = e.target.getAttr('name');
+                    this.connections[this.connections.length - 1].input_name  = e.target.getAttr('name');
+                    this.connections[this.connections.length - 1].input_index = index;
                     this.connections[this.connections.length - 1].node_in = oncircle.parent._id;
                     let node_out = this.connections[this.connections.length - 1].node_out;
                     let output_name = this.connections[this.connections.length - 1].output_name;
@@ -702,6 +754,10 @@ export default class FlowBuilder {
             pos_y: y,
             outputs,
         };
+    }
+
+    lineEvent(target) {
+
     }
 
     eventsListener() {
