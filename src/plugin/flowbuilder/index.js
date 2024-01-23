@@ -19,34 +19,8 @@ export default class FlowBuilder {
         this.selectionRectangle = null;
         this.events = {};
         this.newScale = 0;
-        this.nodes = {
-            "drawflow": {
-                "Home": {
-                    "data": {
-                        "1": {
-                            "id": "1",
-                            "name": "welcome",
-                            "data": {
-                            },
-                            "inputs": [
-                            ],
-                            "pos_x": 135,
-                            "pos_y": 160,
-                            "outputs": {
-                                "output_1": {
-                                    "connections": [
-                                        {
-                                            "node": 2,
-                                            "output": "input_1"
-                                        }
-                                    ]
-                                }
-                            }
-                        },
-                    }
-                }
-            },
-        };
+        this.nodes = {};
+        this.currentScale = 6;
     }
 
     /* Events */
@@ -236,8 +210,8 @@ export default class FlowBuilder {
                             input.setAttr('fill', '#fff');
                         }
                         
-                        let nodeInput = this.nodes.drawflow.Home.data[connection.node_in];
-                        let nodeOutput = this.nodes.drawflow.Home.data[connection.node_out];
+                        let nodeInput = this.nodes[connection.node_in];
+                        let nodeOutput = this.nodes[connection.node_out];
 
                         console.log('nodeInput', nodeInput);
                         console.log('nodeOutput', nodeOutput);
@@ -259,7 +233,7 @@ export default class FlowBuilder {
                     }
                 }
 
-                delete this.nodes.drawflow.Home.data[id];
+                delete this.nodes[id];
                 element.remove();
             }
 
@@ -270,8 +244,8 @@ export default class FlowBuilder {
                     let connection = this.connections.find((con, index) => {
                         return con.id === parseInt(id);
                     });
-                    let nodeInput = this.nodes.drawflow.Home.data[connection.node_in];
-                    let nodeOutput = this.nodes.drawflow.Home.data[connection.node_out];
+                    let nodeInput = this.nodes[connection.node_in];
+                    let nodeOutput = this.nodes[connection.node_out];
                     
                     nodeInput.inputs[`input_${connection.input_index}`].connections.forEach((con, i) => {
                         if(con.output_name == connection.output_name) {
@@ -383,30 +357,8 @@ export default class FlowBuilder {
                     distanceIn = 30;
                 }
                 heightNode *= maxValue;
-                node = new Konva.Rect({
-                    x: 0,
-                    y: 0,
-                    width: 220,
-                    height: heightNode,
-                    fill: background,
-                    stroke: '#E5E5E5',
-                    strokeWidth: 4,
-                    cornerRadius: 8,
-                    shadowColor: '#ccc',
-                    shadowBlur: 5,
-                    shadowOffset: { x: 2, y: 2 },
-                    shadowOpacity: 0.3,
-                });
-                var title = new Konva.Text({
-                    x: 50,
-                    y: 20,
-                    text: style.label,
-                    fontSize: 18,
-                    fontFamily: 'Calibri',
-                    fill: '#252525',
-                });
                 var icon = new Konva.Text({
-                    x: -10,
+                    x: 10,
                     y: 8,
                     padding: 10,
                     align: 'center',
@@ -416,6 +368,32 @@ export default class FlowBuilder {
                     fontSize: 25,
                     fontFamily: 'Material Symbols Outlined',
                     fill: '#252525',
+                });
+                var title = new Konva.Text({
+                    x: icon.getAttr('x') + 65,
+                    y: 20,
+                    text: style.label,
+                    fontSize: 18,
+                    fontFamily: 'Calibri',
+                    fill: '#252525',
+                });
+                let nodeWidth = 270;
+                if(title.getAttr('width') > 10) {
+                    nodeWidth = title.getAttr('width') + 130;
+                }
+                node = new Konva.Rect({
+                    x: 0,
+                    y: 0,
+                    width: nodeWidth,
+                    height: heightNode,
+                    fill: background,
+                    stroke: '#E5E5E5',
+                    strokeWidth: 4,
+                    cornerRadius: 8,
+                    shadowColor: '#ccc',
+                    shadowBlur: 5,
+                    shadowOffset: { x: 2, y: 2 },
+                    shadowOpacity: 0.3,
                 });
                 break;
         }
@@ -542,17 +520,17 @@ export default class FlowBuilder {
                     let node_out = this.connections[this.connections.length - 1].node_out;
                     let output_name = this.connections[this.connections.length - 1].output_name;
                     let output_index = this.connections[this.connections.length - 1].output_index;
-                    console.log(this.nodes.drawflow.Home.data[oncircle.parent._id]);
+                    console.log(this.nodes[oncircle.parent._id]);
                     console.log(this.connections[this.connections.length - 1]);
                     console.log('input_' + index);
-                    this.nodes.drawflow.Home.data[oncircle.parent._id].inputs['input_' + index].connections.push(
+                    this.nodes[oncircle.parent._id].inputs['input_' + index].connections.push(
                         {
                             node: node_out,
                             output: 'output_' + output_index,
                             output_name: output_name
                         }
                     );
-                    this.nodes.drawflow.Home.data[this.connections[this.connections.length - 1].node_out].outputs['output_' + output_index].connections.push(
+                    this.nodes[this.connections[this.connections.length - 1].node_out].outputs['output_' + output_index].connections.push(
                         {
                             node: oncircle.parent._id,
                             input: 'input_' + index,
@@ -565,6 +543,10 @@ export default class FlowBuilder {
 
                     lastLine.line.setAttr('name', `node_in_${groupNode._id}_input_${index}_node_out_${node_out}_output_${output_index}`);
                     console.log(this.nodes);
+                    this.dispatch('connected', {
+                        node_in: oncircle.parent._id,
+                        node_out: node_out,
+                    });
                 }
                 this.drawingLine = false;
             });
@@ -576,7 +558,7 @@ export default class FlowBuilder {
             groupNode.add(tooltip);
         }
         if (icon) {
-            //groupNode.add(icon);
+            groupNode.add(icon);
         }
         groupNode.add(node);
 
@@ -590,12 +572,26 @@ export default class FlowBuilder {
         groupNode.on('mouseup', (e) => {
             this.drawingLine = false;
             groupNode.setDraggable(true);
+            this.dispatch('clicked', {
+                id: e.target._id,
+            });
         });
 
         groupNode.on('dragmove', (e) => {
             console.log('Moving Node', e.target);
             let target = e.target;
-            let node = this.nodes.drawflow.Home.data[target._id];
+            let node = this.nodes[target._id];
+            this.nodes[target._id].pos_x = target.getAttr('x');
+            this.nodes[target._id].pos_y = target.getAttr('y');
+            this.dispatch('move', {
+                id: target._id,
+                x: target.getAttr('x'),
+                y: target.getAttr('y')
+            });
+
+            console.log('pos_x', target.getAttr('x'));
+            console.log('pos_y', target.getAttr('y'));
+
             console.log(node);
             if (node.inputs) {
                 let inputs = Object.values(node.inputs);
@@ -723,7 +719,7 @@ export default class FlowBuilder {
             if (e.target.parent.getAttr('name') != 'welcome') {
                 let deleteNode = this.stage.findOne(`.delete_node_${e.target.parent._id}`);
                 if (deleteNode == null) {
-                    deleteNode = this.makeDelete(90, -10, `delete_node_${e.target.parent._id}`);
+                    deleteNode = this.makeDelete(node.getAttr('width') / 2, -10, `delete_node_${e.target.parent._id}`);
                     e.target.parent.add(deleteNode);
                 }
             }
@@ -745,7 +741,7 @@ export default class FlowBuilder {
         this.layer.draw();
 
         //Make object json
-        this.nodes.drawflow.Home.data[groupNode._id] = {
+        this.nodes[groupNode._id] = {
             id: groupNode._id,
             name: name,
             data,
@@ -756,14 +752,46 @@ export default class FlowBuilder {
         };
     }
 
-    lineEvent(target) {
+    zoom(direction = 1) {
+        // stop default scrolling
+        let scales = [5, 4, 3, 2.5, 2, 1.5, 1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.05]
 
+        var oldScale = this.stage.scaleX();
+
+        var mousePointTo = {
+            x: (this.stage.x()) / oldScale,
+            y: (this.stage.y()) / oldScale,
+        };
+
+        if (direction > 0) {
+            this.currentScale = this.currentScale > 0 ? this.currentScale - 1 : this.currentScale;
+        }
+        else {
+            this.currentScale = this.currentScale < scales.length - 1 ? this.currentScale + 1 : this.currentScale;
+        }
+
+        if(direction == 0) {
+            this.currentScale = 6;
+        }
+
+        this.newScale = scales[this.currentScale];
+
+        this.stage.scale({ x: this.newScale, y: this.newScale });
+
+        var newPos = {
+            x: mousePointTo.x * this.newScale,
+            y:  mousePointTo.y * this.newScale,
+        };
+
+        this.stage.position(newPos);
+
+        this.stage.draw();
+        this.drawGrid();
     }
 
     eventsListener() {
         let x = new Konva.Layer();
         var scaleBy = 1.01;
-        let currentScale = 6;
         let scales = [5, 4, 3, 2.5, 2, 1.5, 1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.05]
         this.stage.on('wheel', (e) => {
             // stop default scrolling
@@ -787,13 +815,13 @@ export default class FlowBuilder {
             }
 
             if (direction > 0) {
-                currentScale = currentScale > 0 ? currentScale - 1 : currentScale;
+                this.currentScale = this.currentScale > 0 ? this.currentScale - 1 : this.currentScale;
             }
             else {
-                currentScale = currentScale < scales.length - 1 ? currentScale + 1 : currentScale;
+                this.currentScale = this.currentScale < scales.length - 1 ? this.currentScale + 1 : this.currentScale;
             }
 
-            this.newScale = scales[currentScale];
+            this.newScale = scales[this.currentScale];
 
             this.stage.scale({ x: this.newScale, y: this.newScale });
 

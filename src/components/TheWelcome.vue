@@ -1,6 +1,19 @@
 <template>
   <div class="drawflow">
-    <div id="myFlow" style="float: left;"></div>
+    <div style="float: left;" class="relative">
+      <div id="myFlow"></div>
+      <div class="box-tools-flow">
+        <div class="btn-flow-tools btn-flow-zoons has-tooltip">
+          <span class="material-symbols-outlined" @click="editor.zoom(-1)">zoom_out</span>
+        </div>
+        <div class="btn-flow-tools btn-flow-zoons has-tooltip" @click="editor.zoom(1)">
+          <span class="material-symbols-outlined">zoom_in</span>
+        </div>
+        <div class="btn-flow-tools btn-flow-zoons has-tooltip" @click="editor.zoom(0)">
+          <span class="material-symbols-outlined">search</span>
+        </div>
+      </div>
+    </div>
     <div style="float: left;padding: 15px;">
       <div class="drawflow-node selectable" draggable="true" data-node="simple_message" @dragstart="drag">
         <div class="drawflow_content_node">
@@ -104,5 +117,36 @@ export default {
 }
 .drawflow-node.flow_end .title-box span{
   color: rgb(165, 151, 208);
+}
+.relative {
+  position: relative;
+}
+.box-tools-flow {
+  position: absolute;
+  top: 20%;
+  right: 14px;
+}
+.btn-flow-tools.btn-flow-zoons {
+  background: #fff;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #788db4;
+  margin: 0 auto;
+  margin-top: 20px;
+}
+.btn-flow-zoons:hover {
+  background: #d1daeb;
+}
+.btn-flow-tools {
+  z-index: 9;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #752de6;
+  text-align: center;
+  cursor: pointer;
+  padding-top: 5px;
+  -webkit-box-shadow: 0 12px 10px 0 rgba(0,0,0,.152);
+  box-shadow: 0 6px 10px 0 rgba(0,0,0,.152);
 }
 </style>
