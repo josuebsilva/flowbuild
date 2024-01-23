@@ -1,6 +1,8 @@
-# flowbuild
+# Flowbuild
 
-This template should help get you started developing with Vue 3 in Vite.
+This lib is used for make flow with vue.
+
+![Demo](https://i.imgur.com/8IvFuoD.png)
 
 ## Recommended IDE Setup
 
@@ -27,3 +29,7 @@ npm run dev
 ```sh
 npm run build
 ```
+
+## Lib
+
+KonvaJS [Visite](konvajs.org).
