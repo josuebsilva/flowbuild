@@ -21,6 +21,14 @@ export default class FlowBuilder {
         this.newScale = 0;
         this.nodes = {};
         this.currentScale = 6;
+        this.selectionRectangle = null;
+        this.selecting = false;
+        this.x1;
+        this.y1;
+        this.x2;
+        this.y2;
+        this.tr = null;
+        this.keyCTRL = false;
     }
 
     /* Events */
@@ -116,13 +124,26 @@ export default class FlowBuilder {
         this.stage.add(this.gridLayer);
         this.stage.add(this.layer);
 
-        var tr = new Konva.Transformer();
-        tr.draggable = true;
-        this.layer.add(tr);
+        this.tr = new Konva.Transformer({
+            resizeEnabled: false,
+            rotateEnabled: false,
+            rotateLineVisible: false,
+            borderStroke: '#752de6',
+            borderStrokeWidth: 3,
+            borderDash: [10, 10],
+            padding: 10,
+            enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+        });
+        this.layer.add(this.tr);
 
+        this.selectionRectangle = new Konva.Rect({
+            fill: 'rgba(0,0,255,0.5)',
+            visible: false,
+        });
+        this.layer.add(this.selectionRectangle);
 
-        this.addNode(20, 20, 'welcome');
-        this.addNode(300, 40, 'whats', [], 1, 2);
+        this.addNode(90, 90, 'welcome');
+        this.addNode(400, 90, 'whats', [], 1, 2);
         this.generateSelect();
         this.eventsListener();
     }
@@ -246,6 +267,11 @@ export default class FlowBuilder {
                     });
                     let nodeInput = this.nodes[connection.node_in];
                     let nodeOutput = this.nodes[connection.node_out];
+
+                    this.dispatch('disconnected', {
+                        node_in: connection.node_in,
+                        node_out: connection.node_out,
+                    });
                     
                     nodeInput.inputs[`input_${connection.input_index}`].connections.forEach((con, i) => {
                         if(con.output_name == connection.output_name) {
@@ -436,6 +462,7 @@ export default class FlowBuilder {
                     strokeWidth: 4,
                     lineCap: 'round',
                     lineJoin: 'round',
+                    fillPatternX: 10,
                     //dash: [20, 20],
                 });
 
@@ -844,14 +871,43 @@ export default class FlowBuilder {
                     this.connections.splice(this.connections.length - 1, 1);
                 }
             }
+            if (this.selecting) {
+                this.selectionRectangle.visible(false);
+                var shapes = this.stage.find('Group');
+                console.log('shapes', shapes);
+                var box = this.selectionRectangle.getClientRect();
+                var selected = shapes.filter((shape) =>
+                    Konva.Util.haveIntersection(box, shape.getClientRect())
+                );
+                this.tr.nodes(selected);
+            }
+            this.selecting = false;
         });
         this.stage.on('click', (e) => {
             const onstage = e.target instanceof Konva.Stage;
 
             console.log('Target up', e.target);
+            if (e.target === this.stage) {
+                this.tr.nodes([]);
+            }
         });
         this.stage.on('mousedown', (e) => {
             const oncircle = e.target instanceof Konva.Circle;
+            if (e.target == this.stage) {
+                if(this.keyCTRL) {
+                    this.stage.setDraggable(false);
+                    this.x1 = this.stage.getPointerPosition().x;
+                    this.y1 = this.stage.getPointerPosition().y;
+                    this.x2 = this.stage.getPointerPosition().x;
+                    this.y2 = this.stage.getPointerPosition().y;
+
+                    this.selectionRectangle.width(0);
+                    this.selectionRectangle.height(0);
+
+                    this.selecting = true;
+                }
+            }
+
             if (!oncircle) {
                 return;
             }
@@ -891,6 +947,18 @@ export default class FlowBuilder {
                     context.fillStrokeShape(shape);
                 });
             }
+            if (this.selecting) {
+                this.x2 = this.stage.getPointerPosition().x;
+                this.y2 = this.stage.getPointerPosition().y;
+
+                this.selectionRectangle.setAttrs({
+                    visible: true,
+                    x: Math.min(this.x1, this.x2),
+                    y: Math.min(this.y1, this.y2),
+                    width: Math.abs(this.x2 - this.x1),
+                    height: Math.abs(this.y2 - this.y1),
+                });
+            }
         });
         this.stage.on('dragend', (e) => {
             this.drawGrid();
@@ -899,6 +967,22 @@ export default class FlowBuilder {
         var con = this.stage.container();
         con.addEventListener('dragover', (e) => {
             e.preventDefault(); // !important
+        });
+
+        con.tabIndex = 1;
+
+        con.addEventListener('keydown', (e) => {
+            e.preventDefault();
+            if (e.keyCode == 17) {
+                this.keyCTRL = true;
+            }
+        });
+
+        con.addEventListener('keyup', (e) => {
+            e.preventDefault();
+            this.keyCTRL = false;
+            this.stage.setDraggable(true);
+            this.selecting = false;
         });
 
         con.addEventListener('drop', (e) => {

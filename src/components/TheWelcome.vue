@@ -29,6 +29,13 @@
           </div>
         </div>
       </div>
+      <div class="drawflow-node selectable flow_template" draggable="true" data-node="template" @dragstart="drag">
+        <div class="drawflow_content_node">
+          <div class="flow_end-action">
+            <div class="title-box"><span class="material-symbols-outlined" style="float: left;">palette</span> Template</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -72,6 +79,13 @@ export default {
             background: 'rgb(224, 215, 251)',
             label: 'Finalizar fluxo',
             icon: 'check',
+          });
+          break;
+        case 'template':
+          this.editor.addNode(data.x, data.y, data.name, {}, 1, 1, {
+            background: 'rgb(118 255 219)',
+            label: 'Template',
+            icon: 'palette',
           });
           break;
         default:
@@ -148,5 +162,11 @@ export default {
   padding-top: 5px;
   -webkit-box-shadow: 0 12px 10px 0 rgba(0,0,0,.152);
   box-shadow: 0 6px 10px 0 rgba(0,0,0,.152);
+}
+
+.drawflow-node.flow_template {
+    color: #fff;
+    background: rgb(72 193 161) !important;
+    border-radius: 10px !important;
 }
 </style>
