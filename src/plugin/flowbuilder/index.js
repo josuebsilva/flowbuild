@@ -879,7 +879,16 @@ export default class FlowBuilder {
                 var selected = shapes.filter((shape) =>
                     Konva.Util.haveIntersection(box, shape.getClientRect())
                 );
-                this.tr.nodes(selected);
+                //remove all not group
+                let selections = [];
+                selected.forEach((item) => {
+                    let hasGroup = item instanceof Konva.Label;
+                    if (!hasGroup) {
+                        selections.push(item);
+                    }
+                });
+                console.log('selected: ', selections);
+                this.tr.nodes(selections);
             }
             this.selecting = false;
         });
@@ -896,10 +905,10 @@ export default class FlowBuilder {
             if (e.target == this.stage) {
                 if(this.keyCTRL) {
                     this.stage.setDraggable(false);
-                    this.x1 = this.stage.getPointerPosition().x;
-                    this.y1 = this.stage.getPointerPosition().y;
-                    this.x2 = this.stage.getPointerPosition().x;
-                    this.y2 = this.stage.getPointerPosition().y;
+                    this.x1 = this.stage.getRelativePointerPosition().x;
+                    this.y1 = this.stage.getRelativePointerPosition().y;
+                    this.x2 = this.stage.getRelativePointerPosition().x;
+                    this.y2 = this.stage.getRelativePointerPosition().y;
 
                     this.selectionRectangle.width(0);
                     this.selectionRectangle.height(0);
@@ -948,8 +957,8 @@ export default class FlowBuilder {
                 });
             }
             if (this.selecting) {
-                this.x2 = this.stage.getPointerPosition().x;
-                this.y2 = this.stage.getPointerPosition().y;
+                this.x2 = this.stage.getRelativePointerPosition().x;
+                this.y2 = this.stage.getRelativePointerPosition().y;
 
                 this.selectionRectangle.setAttrs({
                     visible: true,

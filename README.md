@@ -2,7 +2,7 @@
 
 This lib is used for make flow with vue.
 
-![Demo](https://i.imgur.com/8IvFuoD.png)
+![Demo](https://i.imgur.com/xb1t3HK.png)
 
 ## Recommended IDE Setup
 
