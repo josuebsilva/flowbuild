@@ -143,7 +143,7 @@ export default class FlowBuilder {
         this.layer.add(this.selectionRectangle);
 
         this.addNode(90, 90, 'welcome');
-        this.addNode(400, 90, 'whats', [], 1, 2);
+        //this.addNode(400, 90, 'whats', [], 1, 2);
         this.generateSelect();
         this.eventsListener();
     }
@@ -312,15 +312,19 @@ export default class FlowBuilder {
         return tooltip;
     }
 
-    addNode(x, y, name, data, num_in = 0, num_out = 1, style = {}) {
-
-        var groupNode = new Konva.Group({
+    addNode(x, y, name, data, num_in = 0, num_out = 1, style = {}, id = null) {
+        let groupData = {
             name,
             x: x,
             y: y,
             draggable: true,
-        });
+        };
+        var groupNode = new Konva.Group(groupData);
+        if(id) {
+            groupNode._id = id;
+        }
         groupNode.setAttr('id', groupNode._id);
+        console.log(groupNode);
         if (name != 'welcome')
             groupNode.setAttr('name', `node_${groupNode._id}`);
 
@@ -768,15 +772,18 @@ export default class FlowBuilder {
         this.layer.draw();
 
         //Make object json
-        this.nodes[groupNode._id] = {
-            id: groupNode._id,
-            name: name,
-            data,
-            inputs,
-            pos_x: x,
-            pos_y: y,
-            outputs,
-        };
+        if(id == null ) {
+            this.nodes[groupNode._id] = {
+                id: groupNode._id,
+                name: name,
+                data,
+                inputs,
+                pos_x: x,
+                pos_y: y,
+                outputs,
+                style
+            };
+        }
     }
 
     zoom(direction = 1) {
@@ -1016,6 +1023,127 @@ export default class FlowBuilder {
 
     unScale(val) {
         return (val / this.stage.scaleX());
+    }
+
+    export() {
+        const dataExport = JSON.parse(JSON.stringify(this.nodes));
+        this.dispatch('export', dataExport);
+        return dataExport;
+    }
+
+    import(data, notifi = true) {
+        this.clear();
+        console.log(data);
+        this.nodes = JSON.parse(JSON.stringify(data));
+        this.load();
+        if (notifi) {
+          this.dispatch('import', 'import');
+        }
+    }
+
+    load() {
+        let newNodes = Object.values(this.nodes);
+        newNodes.forEach((node) => {
+            let inputs = Object.values(node.inputs);
+            let outputs = Object.values(node.outputs);
+            this.addNode(node.pos_x, node.pos_y, node.name, node.data, inputs.length, outputs.length, node.style, node.id);
+        });
+        newNodes.forEach((node) => {
+            let inputs = Object.values(node.inputs);
+            let outputs = Object.values(node.outputs);
+            outputs.forEach((output) => {
+                output.connections.forEach((connection, index) => {
+                    let outputObj = this.stage.findOne(`.output_${output.index}_node_${node.id}`);
+                    let inputObj = this.stage.findOne(`.${connection.input_name}`);
+
+                    outputObj.setAttr('fill', '#03fcd3');
+                    inputObj.setAttr('fill', '#03fcd3');
+
+                    var outPutX = outputObj.getAttr('x') + outputObj.parent.getAttr('x');
+                    var outPutY = outputObj.getAttr('y') + outputObj.parent.getAttr('y');
+                    var inputX = inputObj.getAttr('x') + inputObj.parent.getAttr('x');
+                    var inputY = inputObj.getAttr('y') + inputObj.parent.getAttr('y');
+
+                    let points = [
+                        outPutX,
+                        outPutY,
+                        inputX,
+                        inputY,
+                    ];
+
+                    var line = new Konva.Line({
+                        name: `node_in_${connection.node}_input_${inputObj.getAttr('index')}_node_out_${node.id}_output_${output.index}`,
+                        points: points,
+                        stroke: '#E5E5E5',
+                        strokeWidth: 4,
+                        lineCap: 'round',
+                        lineJoin: 'round',
+                        fillPatternX: 10,
+                    });
+                    line.sceneFunc((context, shape) => {
+                        const width = inputX - outPutX;
+                        const height = inputY - outPutY;
+                        const dir = Math.sign(height);
+                        const radius = Math.min(20, Math.abs(height / 2), Math.abs(width / 2));
+
+                        context.beginPath();
+                        context.moveTo(outPutX, outPutY);
+                        context.lineTo(outPutX + width / 2 - 20, outPutY);
+                        context.quadraticCurveTo(
+                            outPutX + width / 2,
+                            outPutY,
+                            outPutX + width / 2,
+                            outPutY + dir * radius
+                        );
+                        context.lineTo(outPutX + width / 2, inputY - dir * radius);
+                        context.quadraticCurveTo(
+                            outPutX + width / 2,
+                            inputY,
+                            outPutX + width / 2 + radius,
+                            inputY
+                        );
+                        context.lineTo(inputX, inputY);
+                        context.fillStrokeShape(shape);
+                    });
+
+                    this.connections.push({
+                        id: line._id,
+                        node_out: node.id,
+                        line: line,
+                        points: points,
+                        output_index: output.index,
+                        output_name: `output_${output.index}_node_${node.id}`,
+                        input_name: connection.input_name,
+                        input_index: inputObj.getAttr('index'),
+                        node_in: connection.node
+                    });
+                    this.layer.add(line);
+                    line.zIndex(0);
+                    line.on('mouseover', (e) => {
+                        e.target.attrs.stroke = '#03fcd3';
+                        line.zIndex(0);
+                        e.target.draw();
+                        if (!this.drawingLine) {
+                            let deleteConnection = this.stage.findOne(`.delete_line_${e.target._id}`);
+                            if (deleteConnection == null) {
+                                deleteConnection = this.makeDelete(e.target.getRelativePointerPosition().x, e.target.getRelativePointerPosition().y, `delete_line_${e.target._id}`);
+                                this.layer.add(deleteConnection);
+                            }
+                        }
+                    });
+                    line.on('mouseout', function (e) {
+                        e.target.attrs.stroke = '#E5E5E5';
+                        line.zIndex(0);
+                        e.target.draw();
+                    });
+                    console.log('node import', node);
+                });
+            })
+        });
+    }
+
+    clear() {
+        this.layer.removeChildren();
     }
 
     drawGrid() {

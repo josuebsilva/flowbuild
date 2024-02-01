@@ -36,6 +36,24 @@
           </div>
         </div>
       </div>
+      <br>
+      <hr>
+      <br>
+      <div class="drawflow-node" style="cursor: pointer; text-align: center;" @click="exportFlow()">
+        <div class="drawflow_content_node" style="width: 100%;">
+          <div class="flow_end-action">
+            <div class="title-box">Exportar</div>
+          </div>
+        </div>
+      </div>
+      <div class="drawflow-node" style="cursor: pointer; text-align: center;" @click="importFlow()">
+        <input type="file" accept=".yflow" hidden ref="uploadedFile" @change="uploadFile"/>
+        <div class="drawflow_content_node" style="width: 100%;">
+          <div class="flow_end-action">
+            <div class="title-box">Importar</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -53,12 +71,36 @@ export default {
     };
   },
   methods: {
+    exportFlow() {
+      let exportData = this.editor.export();
+      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportData));
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute('href', dataStr);
+      downloadAnchorNode.setAttribute('download', 'flow_yup.yflow');
+      document.body.appendChild(downloadAnchorNode); // required for firefox
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
+    },
     addNode() {
       this.editor.addNode(300, 40, 'finish', [], 1, 0);
     },
     drag(ev) {
       console.log(ev.type);
       ev.dataTransfer.setData('node', ev.target.getAttribute('data-node'));
+    },
+    uploadFile(event) {
+      const self = this;
+      const reader = new FileReader();
+      const file = event.target.files[0];
+
+      reader.onload = () => {
+        const jsonFile = reader.result;
+        this.editor.import(JSON.parse(jsonFile));
+      };
+      reader.readAsText(file, 'UTF-8');
+    },
+    importFlow() {
+      this.$refs.uploadedFile.click();
     },
   },
   created() {
