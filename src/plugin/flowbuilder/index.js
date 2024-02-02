@@ -534,6 +534,7 @@ export default class FlowBuilder {
                 const posTarget = e.target.getAbsolutePosition();
                 var points = [posMouse.x, posMouse.y];
                 var oncircle = e.target;
+                const isCircle = e.target instanceof Konva.Circle;
                 if (this.drawingLine) {
                     let index = e.target.getAttr('index');
                     console.log('Connections', this.connections);
@@ -601,11 +602,19 @@ export default class FlowBuilder {
             }
         });
         groupNode.on('mouseup', (e) => {
-            this.drawingLine = false;
+            const oncircle = e.target instanceof Konva.Circle;
+            console.log('Aqui', this.drawingLine);
             groupNode.setDraggable(true);
             this.dispatch('clicked', {
                 id: e.target._id,
             });
+            if (this.drawingLine) {
+                if (!oncircle) {
+                    this.connections[this.connections.length - 1].line.remove();
+                    this.connections.splice(this.connections.length - 1, 1);
+                }
+                this.drawingLine = false;
+            }
         });
 
         groupNode.on('dragmove', (e) => {
@@ -898,6 +907,7 @@ export default class FlowBuilder {
                 this.tr.nodes(selections);
             }
             this.selecting = false;
+            this.drawingLine = false;
         });
         this.stage.on('click', (e) => {
             const onstage = e.target instanceof Konva.Stage;
